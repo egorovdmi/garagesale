@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/egorovdmi/garagesale/schema"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -31,12 +33,32 @@ func main() {
 	}
 	defer db.Close()
 
+	ps := ProductService{
+		db: db,
+	}
+
+	flag.Parse()
+	switch flag.Arg(0) {
+	case "migrate":
+		if err := schema.Migrate(db); err != nil {
+			log.Fatal("applying migrations", err)
+		}
+		log.Println("Migrations complete")
+		return
+	case "seed":
+		if err := schema.Seed(db); err != nil {
+			log.Fatal("applying seed data", err)
+		}
+		log.Println("Seed data inserted")
+		return
+	}
+
 	// =========================================================================
 	// Start API service
 
 	api := http.Server{
 		Addr:         "localhost:8000",
-		Handler:      http.HandlerFunc(ProductsList),
+		Handler:      http.HandlerFunc(ps.List),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
@@ -88,19 +110,27 @@ func openDB() (*sqlx.DB, error) {
 	return sqlx.Open("postgres", u.String())
 }
 
+type ProductService struct {
+	db *sqlx.DB
+}
+
 type Product struct {
-	Name     string `json:"name"`
-	Cost     int    `json:"cost"`
-	Quantity int    `json:"quantity"`
+	ID          string    `db:"product_id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Cost        int       `db:"cost" json:"cost"`
+	Quantity    int       `db:"quantity" json:"quantity"`
+	DateCreated time.Time `db:"date_created" json:"date_created"`
+	DateUpdated time.Time `db:"date_updated" json:"date_updated"`
 }
 
 // ProductsList returns the list with all products
-func ProductsList(w http.ResponseWriter, r *http.Request) {
+func (ps *ProductService) List(w http.ResponseWriter, r *http.Request) {
 	list := []Product{}
 
-	if true {
-		list = append(list, Product{Name: "Comic Book", Cost: 99, Quantity: 10})
-		list = append(list, Product{Name: "Cyberpunk 2077", Cost: 49, Quantity: 99})
+	if err := ps.db.Select(&list, "SELECT * FROM products"); err != nil {
+		log.Println("db select error", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	data, err := json.Marshal(list)
