@@ -13,9 +13,17 @@ import (
 	"github.com/egorovdmi/garagesale/cmd/sales-api/internal/handlers"
 	"github.com/egorovdmi/garagesale/internal/platform/conf"
 	"github.com/egorovdmi/garagesale/internal/platform/database"
+	"github.com/pkg/errors"
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Println("shutting down", "error:", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	// =========================================================================
 	// App starting
 
@@ -42,17 +50,17 @@ func main() {
 		if err == conf.ErrHelpWanted {
 			usage, err := conf.Usage("SALES", &cfg)
 			if err != nil {
-				log.Fatalf("error : generating config usage : %v", err)
+				return errors.Wrap(err, "generating config usage")
 			}
 			fmt.Println(usage)
-			return
+			return nil
 		}
-		log.Fatalf("error: parsing config: %s", err)
+		return errors.Wrap(err, "parsing config")
 	}
 
 	out, err := conf.String(&cfg)
 	if err != nil {
-		log.Fatalf("error : generating config for output : %v", err)
+		return errors.Wrap(err, "generating config for output")
 	}
 	log.Printf("main : Config :\n%v\n", out)
 
@@ -60,7 +68,7 @@ func main() {
 	// Setup dependencies
 	db, err := database.Open(database.Config{Host: cfg.DB.Host, DBName: cfg.DB.Name, User: cfg.DB.User, Pass: cfg.DB.Pass, DisableSSL: cfg.DB.DisableSSL})
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrap(err, "database connection")
 	}
 	defer db.Close()
 
@@ -90,7 +98,7 @@ func main() {
 
 	select {
 	case err := <-serverErrors:
-		log.Fatal(err)
+		return errors.Wrap(err, "starting server")
 	case <-shutdown:
 		log.Println("Shutting down...")
 		timeout := cfg.Web.ShutdownTimeout
@@ -104,7 +112,9 @@ func main() {
 		}
 
 		if err != nil {
-			log.Fatalf("main : could not stop server gracefully : %v", err)
+			return errors.Wrap(err, "could not stop server gracefully")
 		}
 	}
+
+	return nil
 }
