@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/egorovdmi/garagesale/schema"
+	"github.com/egorovdmi/garagesale/internal/schema"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
