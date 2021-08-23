@@ -10,7 +10,8 @@ import (
 )
 
 type Product struct {
-	DB *sqlx.DB
+	DB  *sqlx.DB
+	Log *log.Logger
 }
 
 // ProductsList returns the list with all products
@@ -18,14 +19,14 @@ func (ps *Product) List(w http.ResponseWriter, r *http.Request) {
 
 	list, err := product.List(ps.DB)
 	if err != nil {
-		log.Println("db select error", err)
+		ps.Log.Println("db select error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	data, err := json.Marshal(list)
 	if err != nil {
-		log.Println("marshaling error", err)
+		ps.Log.Println("marshaling error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -33,6 +34,6 @@ func (ps *Product) List(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(data); err != nil {
-		log.Println("error writing", err)
+		ps.Log.Println("error writing", err)
 	}
 }

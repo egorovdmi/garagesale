@@ -27,6 +27,8 @@ func run() error {
 	// =========================================================================
 	// App starting
 
+	log := log.New(os.Stdout, "SALES : ", log.LstdFlags|log.Lmicroseconds|log.Lshortfile)
+
 	fmt.Println("Starting a web server.")
 	defer fmt.Println("Server stopped.")
 
@@ -73,7 +75,8 @@ func run() error {
 	defer db.Close()
 
 	ps := handlers.Product{
-		DB: db,
+		DB:  db,
+		Log: log,
 	}
 
 	// =========================================================================
