@@ -74,17 +74,12 @@ func run() error {
 	}
 	defer db.Close()
 
-	ps := handlers.Product{
-		DB:  db,
-		Log: log,
-	}
-
 	// =========================================================================
 	// Start API service
 
 	api := http.Server{
 		Addr:         cfg.Web.Address,
-		Handler:      http.HandlerFunc(ps.List),
+		Handler:      handlers.Router(log, db),
 		ReadTimeout:  cfg.Web.ReadTimeout,
 		WriteTimeout: cfg.Web.WriteTimeout,
 	}

@@ -1,12 +1,14 @@
 package handlers
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/egorovdmi/garagesale/internal/platform/web"
 	"github.com/egorovdmi/garagesale/internal/product"
 	"github.com/jmoiron/sqlx"
+	"github.com/pkg/errors"
 )
 
 type Product struct {
@@ -15,50 +17,59 @@ type Product struct {
 }
 
 // ProductsList returns the list with all products
-func (ps *Product) List(w http.ResponseWriter, r *http.Request) {
+func (ps *Product) List(w http.ResponseWriter, r *http.Request) error {
 
-	list, err := product.List(ps.DB)
+	list, err := product.List(r.Context(), ps.DB)
 	if err != nil {
-		ps.Log.Println("db select error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return errors.Wrap(err, "db select error")
 	}
 
-	data, err := json.Marshal(list)
-	if err != nil {
-		ps.Log.Println("marshaling error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	if err := web.Respond(w, list, http.StatusOK); err != nil {
+		return errors.Wrap(err, "error writing")
 	}
 
-	w.Header().Set("content-type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(data); err != nil {
-		ps.Log.Println("error writing", err)
-	}
+	return nil
 }
 
 // Single returns the product by id
-func (ps *Product) Single(w http.ResponseWriter, r *http.Request) {
+func (ps *Product) Single(w http.ResponseWriter, r *http.Request) error {
 
-	id := "TODO"
-	p, err := product.Single(ps.DB, id)
+	id := web.GetURLParam(r, "id")
+	p, err := product.Single(r.Context(), ps.DB, id)
 	if err != nil {
-		ps.Log.Println("db select error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		switch err {
+		case product.ErrInvalidId:
+			return web.NewRequestError(err, http.StatusBadRequest)
+		case product.ErrNotFound:
+			return web.NewRequestError(err, http.StatusNotFound)
+		default:
+			return errors.Wrap(err, "db select error")
+		}
 	}
 
-	data, err := json.Marshal(p)
+	if err := web.Respond(w, p, http.StatusOK); err != nil {
+		return errors.Wrap(err, "error writing")
+	}
+
+	return nil
+}
+
+// Single returns the product by id
+func (ps *Product) Create(w http.ResponseWriter, r *http.Request) error {
+
+	var np product.NewProduct
+	if err := web.Decode(r, &np); err != nil {
+		return err
+	}
+
+	p, err := product.Create(r.Context(), ps.DB, np, time.Now())
 	if err != nil {
-		ps.Log.Println("marshaling error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return errors.Wrap(err, "db create error")
 	}
 
-	w.Header().Set("content-type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write(data); err != nil {
-		ps.Log.Println("error writing", err)
+	if err := web.Respond(w, p, http.StatusCreated); err != nil {
+		return errors.Wrap(err, "error writing")
 	}
+
+	return nil
 }
